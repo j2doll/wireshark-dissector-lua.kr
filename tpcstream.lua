@@ -1,10 +1,18 @@
 -- tpcstream.lua
 
+-- main code from https://meetup.toast.com/posts/103
+-- Wireshark로 내가 만든 프로토콜 분석하기(Wireshark Custom Dissector 제작)
+
 ----------------------------------------------
 -- (1) Create ToastPC Streaming protocol
 --  "tpcstream" : 프로토콜 이름. Filter 창 등에서 사용
 --  "TPCSTREAM" : Packet Detail, List의 Protocol 컬럼에 표시될 프로토콜 Description
 p_tpcstream = Proto("tpcstream", "TPCSTREAM")
+
+ -- https://wiki.wireshark.org/LuaAPI/Proto#Proto
+ -- Proto.new(name, desc) : Creates a new protocol
+ --  name : string : The name of the protocol 
+ --  desc : string : A Long Text description of the protocol (usually lowercase) 
 
 
 ----------------------------------------------
@@ -58,7 +66,7 @@ f.frame_data = ProtoField.bytes("tpcstream.frame_data", "FRAME_DATA")
 ----------------------------------------------
 -- (3) p_tpcstream 객체의 dissector() 함수를 정의합니다.
 -- tpcstream dissector function
-function p_tpcstream.dissector (buffer, pinfo, tree)
+function p_tpcstream.dissector(buffer, pinfo, tree)
 
   -- validate packet length is adequate, otherwise quit
   if buffer:len() == 0 then return end
@@ -67,10 +75,16 @@ function p_tpcstream.dissector (buffer, pinfo, tree)
   -- [A] 패킷 상세정보 창에 SubTree 추가하기
   ---------------------------------------------------------
   subtree = tree:add(p_tpcstream, buffer(0))
+  
+    -- treeitem:add(proto_field [,tvbrange] [,value [,text1 [,text2] ...] ])
+    --   Adds a ProtoField, containing the specified packet detail, as a new TreeItem child to the current TreeItem
+    -- https://wiki.wireshark.org/LuaAPI/TreeItem
 
   -- STARTCODE 값 Parsing. 
   -- buffer의 첫번째 byte(0)부터 4byte만큼을 startcode field에 적용하여 추가합니다.
-  subtree:add(f.startcode, buffer(0, 4))
+  subtree:add(f.startcode, buffer(0, 4)) 
+  -- buffer 는 'big endian' 입니다. litte endian 으로 추가하려면 add_le() 사용
+  
   -- FLAGS 값 Parsing. 
   -- buffer의 다섯번째 byte부터 1byte만큼을 읽고, 이를 ver, reserved, encrypted.. 등 
   -- 위에서 정의한 각 bit field에 적용하여 추가합니다.
@@ -183,4 +197,5 @@ udp_dissector_table:add(8010, p_tpcstream)
 --
 -- dofile("D:\\tools\\tpcstream.lua")
 
-
+-----------------------------------------------
+-- wireshark 에서 사용되는 lua api 정보는 https://wiki.wireshark.org/LuaAPI 참조
