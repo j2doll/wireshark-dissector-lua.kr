@@ -1,20 +1,25 @@
 -- tpcstream.lua
 
 ----------------------------------------------
--- Create ToastPC Streaming protocol
+-- (1) Create ToastPC Streaming protocol
 --  "tpcstream" : 프로토콜 이름. Filter 창 등에서 사용
 --  "TPCSTREAM" : Packet Detail, List의 Protocol 컬럼에 표시될 프로토콜 Description
-p_tpcstream = Proto ("tpcstream", "TPCSTREAM")
+p_tpcstream = Proto("tpcstream", "TPCSTREAM")
 
 
 ----------------------------------------------
+-- (2) 필드 정의하기
 -- 위에서 만든 "p_tpcstream" 객체의 Field를 정의합니다.
 local f = p_tpcstream.fields
 
 -- Field 정의
 --   HEADER 공통
 --     STARTCODE Field 정의
-f.startcode = ProtoField.uint32("tpcstream.startcode", "STARTCODE", base.HEX)
+f.startcode  = ProtoField.uint32("tpcstream.startcode", "STARTCODE", base.HEX)
+ -- ProtoField.uint32() : unsigned 32bit(=4 byte) 크기의 필드
+ -- Wireshark의 'tree' 영역에 표시되는 이름 : "tpcstream.startcode"
+ -- Wireshark의 'filter' 에 적용되는 이름 : "STARTCODE"
+ -- base.HEX : 16진수로 표기함
 
 -- https://wiki.wireshark.org/LuaAPI/Proto#ProtoField
 -- ProtoField.new(name, abbr, type, [voidstring], [base], [mask], [descr])
@@ -28,12 +33,12 @@ f.startcode = ProtoField.uint32("tpcstream.startcode", "STARTCODE", base.HEX)
 
 --     FLAGS Field 정의
 --     bit data를 다루기 위해서는, unit8() 함수의 마지막에 bits mask 값을 기재합니다.
-f.ver = ProtoField.uint8("tpcstream.ver", "VERSION", base.DEC, nil, 0xC0)
-f.reserved = ProtoField.uint8("tpcstream.reserved", "RESERVED", base.HEX, nil, 0x30)
-f.encrypted = ProtoField.uint8("tpcstream.encrypted", "ENCRYPTED", base.DEC, nil, 0x08)
-f.iframe = ProtoField.uint8("tpcstream.iframe", "I-FRAME", base.DEC, nil, 0x04)
-f.startframe = ProtoField.uint8("tpcstream.start", "START", base.DEC, nil, 0x02)
-f.endframe = ProtoField.uint8("tpcstream.end", "END", base.DEC, nil, 0x01)
+f.ver        = ProtoField.uint8("tpcstream.ver",       "VERSION",   base.DEC, nil, 0xC0) -- 0xC0 (16) = 1100 0000 (2)
+f.reserved   = ProtoField.uint8("tpcstream.reserved",  "RESERVED",  base.HEX, nil, 0x30) -- 0x30 (16) = 0011 0000 (2)
+f.encrypted  = ProtoField.uint8("tpcstream.encrypted", "ENCRYPTED", base.DEC, nil, 0x08) -- 0x08 (16) = 0000 1000 (2)
+f.iframe     = ProtoField.uint8("tpcstream.iframe",    "I-FRAME",   base.DEC, nil, 0x04) -- 0x04 (16) = 0000 0100 (2)
+f.startframe = ProtoField.uint8("tpcstream.start",     "START",     base.DEC, nil, 0x02) -- 0x02 (16) = 0000 0010 (2)
+f.endframe   = ProtoField.uint8("tpcstream.end",       "END",       base.DEC, nil, 0x01) -- 0x01 (16) = 0000 0001 (2)
 
 --   HEADER Fields for START BIT == 1 
 --        Frame Size Field 정의
@@ -51,19 +56,20 @@ f.frame_data = ProtoField.bytes("tpcstream.frame_data", "FRAME_DATA")
 
 
 ----------------------------------------------
--- p_tpcstream 객체의 dissector() 함수를 정의합니다.
+-- (3) p_tpcstream 객체의 dissector() 함수를 정의합니다.
 -- tpcstream dissector function
 function p_tpcstream.dissector (buffer, pinfo, tree)
+
   -- validate packet length is adequate, otherwise quit
   if buffer:len() == 0 then return end
 
   ---------------------------------------------------------
-  -- 패킷 상세정보 창에 SubTree 추가하기
+  -- [A] 패킷 상세정보 창에 SubTree 추가하기
   ---------------------------------------------------------
   subtree = tree:add(p_tpcstream, buffer(0))
 
   -- STARTCODE 값 Parsing. 
-  -- buffer의 첫번째 byte부터 4byte만큼을 startcode field에 적용하여 추가합니다.
+  -- buffer의 첫번째 byte(0)부터 4byte만큼을 startcode field에 적용하여 추가합니다.
   subtree:add(f.startcode, buffer(0, 4))
   -- FLAGS 값 Parsing. 
   -- buffer의 다섯번째 byte부터 1byte만큼을 읽고, 이를 ver, reserved, encrypted.. 등 
@@ -90,7 +96,7 @@ function p_tpcstream.dissector (buffer, pinfo, tree)
     -- TOAST PC Streaming Protocol의 frame data는 H.264 패킷을 담고 있으므로, 
     -- 아래와 같이 H.264 Protocol Dissector를 불러와 frame data를 Parsing 합니다.
     h264_table = Dissector.get("h264")
-    tvb=buffer(16)
+    tvb = buffer(16)
     h264_table:call(tvb:tvb(), pinfo, tree)
   else 
     -- start bit 값이 0이면, frame count, packet count, frame data 항목을 추가합니다.
@@ -98,13 +104,13 @@ function p_tpcstream.dissector (buffer, pinfo, tree)
     subtree:add(f.packet_count, buffer(9, 2))
     --subtree:add(f.frame_data, buffer(12))
     h264_table = Dissector.get("h264")
-    tvb=buffer(12)
+    tvb = buffer(12)
     h264_table:call(tvb:tvb(), pinfo, tree)
   end
   ---------------------------------------------------------
 
   ---------------------------------------------------------
-  -- 패킷 목록 표시창 info 컬럼에 표시될 정보 
+  -- [B] 패킷 목록 표시창 info 컬럼에 표시될 정보 
   ---------------------------------------------------------
   -- Protocol 컬럼에 표시될 프로토콜 이름 지정
   -- "TPCSTREAM" 으로 설정
@@ -160,22 +166,20 @@ end
 
 
 ----------------------------------------------
--- Initialization routine
---  p_tpcstream의 init() 함수를 정의합니다.
--- 
+-- (4) Initialization routine : p_tpcstream의 init() 함수를 정의합니다.
 -- 이름 그대로 초기화 시 호출되는 함수입니다.
 -- 본 예제에서는 특별히 처리할 것이 없으므로 비워둡니다.
 function p_tpcstream.init()
 end
 
 ----------------------------------------------
--- UDP Port 7010, 8010번을 통해 전송되는 패킷은 이 Dissector를 태우도록 설정합니다.
-local udp_dissector_table = DissectorTable.get("udp.port")
-udp_dissector_table:add(7010, p_tpcstream)
+-- (5) UDP Port 7010, 8010번을 통해 전송되는 패킷은 이 Dissector를 적용하도록 설정합니다.
+local udp_dissector_table = DissectorTable.get("udp.port") 
+udp_dissector_table:add(7010, p_tpcstream) --
 udp_dissector_table:add(8010, p_tpcstream)
 
 ------------------------------------------------
--- Wireshark의 init.lua 에 다음을 추가한 뒤, wireshark 를 구동
+-- (6) Wireshark의 init.lua 에 다음을 추가한 뒤, wireshark 를 구동.
 --
 -- dofile("D:\\tools\\tpcstream.lua")
 
