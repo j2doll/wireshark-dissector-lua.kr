@@ -1,7 +1,7 @@
 -- tpcstream.lua
 
 -- main code from https://meetup.toast.com/posts/103
--- Wireshark로 내가 만든 프로토콜 분석하기(Wireshark Custom Dissector 제작)
+-- Wireshark로 내가 만든 프로토콜 분석하기 (Wireshark Custom Dissector 제작)
 
 ----------------------------------------------
 -- (1) Create ToastPC Streaming protocol
